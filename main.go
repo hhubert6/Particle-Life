@@ -19,7 +19,7 @@ const (
 )
 
 var forceMatrix = [][]float32{
-	{0, 0, 0},
+	{0.02, 0, 0},
 	{0, 0, 0},
 	{0, 0, 0},
 }
@@ -30,7 +30,7 @@ type Vec2 struct {
 
 type Atom struct {
 	Position, Velocity Vec2
-	Color int
+	Color              int
 }
 
 type Game struct {
@@ -39,15 +39,16 @@ type Game struct {
 
 func NewGame() *Game {
 	game := &Game{
-		atoms1: generateAtoms(300),
-		atoms2: generateAtoms(300),
-		atoms3: generateAtoms(300),
+		atoms1: generateAtoms(300, 0),
 	}
+
+	game.atoms1 = append(game.atoms1, generateAtoms(300, 1)...)
+	game.atoms1 = append(game.atoms1, generateAtoms(300, 2)...)
 
 	return game
 }
 
-func generateAtoms(n int) (container []Atom) {
+func generateAtoms(n int, color int) (container []Atom) {
 	container = make([]Atom, n)
 
 	for i := range container {
@@ -59,6 +60,7 @@ func generateAtoms(n int) (container []Atom) {
 				SCREEN_HEIGHT-PARTICLE_RADIUS,
 			),
 			Velocity: Vec2{},
+			Color:    color,
 		}
 	}
 
@@ -76,7 +78,6 @@ func (g *Game) Update() error {
 	updateAtoms(g.atoms2)
 	updateAtoms(g.atoms3)
 
-	g.Rule(g.atoms1, g.atoms1, 0.02, 200)
 	g.Rule(g.atoms1, g.atoms1, 0.02, 200)
 
 	return nil
@@ -106,11 +107,13 @@ func (g *Game) Rule(atoms1, atoms2 []Atom, force, forceRange float32) {
 		for j := range atoms2 {
 			d := distance(atoms1[i].Position, atoms2[j].Position)
 			factor := float32(0)
-
-			if 0 < d && d < 2*PARTICLE_RADIUS {
-				factor = -1 / d
+			if 0 < d && d < forceRange/3 {
+				factor += -0.1 / d
+			}
+			if 0 < d && d < 3*PARTICLE_RADIUS {
+				factor += -1 / d
 			} else if 0 < d && d < forceRange {
-				factor = force / d
+				factor += forceMatrix[atoms1[i].Color][atoms2[i].Color] / d
 			}
 			forceX += (atoms2[j].Position.X - atoms1[i].Position.X) * factor
 			forceY += (atoms2[j].Position.Y - atoms1[i].Position.Y) * factor
@@ -131,14 +134,18 @@ func distance(posA, posB Vec2) float32 {
 func (g *Game) Draw(screen *ebiten.Image) {
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("%.2f", ebiten.ActualFPS()))
 
+	var clr color.Color
+
 	for _, atom := range g.atoms1 {
-		DrawCircle(screen, atom.Position.X, atom.Position.Y, color.RGBA{255, 0, 0, 255})
-	}
-	for _, atom := range g.atoms2 {
-		DrawCircle(screen, atom.Position.X, atom.Position.Y, color.RGBA{0, 255, 0, 255})
-	}
-	for _, atom := range g.atoms3 {
-		DrawCircle(screen, atom.Position.X, atom.Position.Y, color.RGBA{0, 0, 255, 255})
+		switch atom.Color {
+		case 0:
+			clr = color.RGBA{255, 0, 0, 255}
+		case 1:
+			clr = color.RGBA{0, 255, 0, 255}
+		case 2:
+			clr = color.RGBA{0, 0, 255, 255}
+		}
+		DrawCircle(screen, atom.Position.X, atom.Position.Y, clr)
 	}
 }
 
@@ -152,7 +159,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 
 func main() {
 	game := NewGame()
-	
+
 	ebiten.SetWindowSize(SCREEN_WIDTH, SCREEN_HEIGHT)
 	ebiten.SetWindowTitle("Particle artificial life")
 
