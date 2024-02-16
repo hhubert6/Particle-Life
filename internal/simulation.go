@@ -7,11 +7,11 @@ import (
 )
 
 const (
-	DT                 = 0.02
+	DT                 = 0.016
 	FRICTION_HALF_LIFE = 0.04
-	R_MAX              = 0.1
+	R_MAX              = 0.15
 	BETA               = 0.3
-	FORCE_FACTOR       = 10
+	FORCE_FACTOR       = 5
 )
 
 var frictionFactor = math.Pow(0.5, DT/FRICTION_HALF_LIFE)
@@ -56,7 +56,7 @@ func generateParticles(n, m int) []Particle {
 	container := make([]Particle, n)
 
 	for i := range container {
-		x := rand.Float64()
+		x := rand.Float64() * 1.9
 		y := rand.Float64()
 		color := rand.Intn(m)
 

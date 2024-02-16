@@ -5,22 +5,29 @@ import (
 	"image/color"
 	"log"
 	"math/rand"
-	"particle_life/simulation"
+	simulation "particle-life/internal"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"github.com/lucasb-eyer/go-colorful"
 )
 
 const (
-	SCREEN_WIDTH    = 920
-	SCREEN_HEIGHT   = 720
-	PARTICLE_RADIUS = float32(2)
-	MAX_ZOOM        = 2
-	MIN_ZOOM        = 0.3
+	SCREEN_WIDTH     = 1440
+	SCREEN_HEIGHT    = 760
+	PARTICLE_RADIUS  = float32(2)
+	MAX_ZOOM         = 2
+	MIN_ZOOM         = 0.3
+	ZOOM_IN_FACTOR   = 1.01
+	ZOOM_OUT_FACTOR  = 0.99
+	DEFAULT_ZOOM     = 0.9
+	NUM_OF_PARTICLES = 1000
+	NUM_OF_COLORS    = 5
+	OFFSET_STEP      = 5
 )
 
-var zoom = float64(1)
+var zoom = DEFAULT_ZOOM
 var cameraOffsetX = float64(0)
 var cameraOffsetY = float64(0)
 
@@ -30,7 +37,7 @@ type Game struct {
 
 func NewGame() *Game {
 	return &Game{
-		simulation.NewParticleSimulation(900, createRandomForces(5)),
+		simulation.NewParticleSimulation(NUM_OF_PARTICLES, createRandomForces(NUM_OF_COLORS)),
 	}
 }
 
@@ -50,22 +57,26 @@ func (g *Game) Update() error {
 	g.simulation.Update()
 
 	if ebiten.IsKeyPressed(ebiten.KeyEqual) && zoom <= MAX_ZOOM {
-		zoom *= 1.01
+		zoom *= ZOOM_IN_FACTOR
+		cameraOffsetX *= ZOOM_IN_FACTOR
+		cameraOffsetY *= ZOOM_IN_FACTOR
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyMinus) && zoom >= MIN_ZOOM {
-		zoom *= 0.99
+		zoom *= ZOOM_OUT_FACTOR
+		cameraOffsetY *= ZOOM_OUT_FACTOR
+		cameraOffsetX *= ZOOM_OUT_FACTOR
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
-		cameraOffsetY += 2
+		cameraOffsetY += OFFSET_STEP
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyS) {
-		cameraOffsetY -= 2 
+		cameraOffsetY -= OFFSET_STEP
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyD) {
-		cameraOffsetX -= 2
+		cameraOffsetX -= OFFSET_STEP
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyA) {
-		cameraOffsetX += 2
+		cameraOffsetX += OFFSET_STEP
 	}
 
 	return nil
@@ -74,39 +85,20 @@ func (g *Game) Update() error {
 func (g *Game) Draw(screen *ebiten.Image) {
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("%.2f", ebiten.ActualFPS()))
 
-	var clr color.Color
-
 	for _, particle := range g.simulation.Particles() {
-		switch particle.Color {
-		case 0:
-			clr = color.RGBA{255, 0, 0, 255}
-		case 1:
-			clr = color.RGBA{0, 255, 0, 255}
-		case 2:
-			clr = color.RGBA{0, 0, 255, 255}
-		case 3:
-			clr = color.RGBA{255, 0, 255, 255}
-		case 4:
-			clr = color.RGBA{255, 255, 0, 255}
-		}
-		DrawCircle(
-			screen,
-			(particle.Position.X*SCREEN_HEIGHT*zoom + SCREEN_WIDTH/2 - SCREEN_HEIGHT*zoom/2) + cameraOffsetX,
-			(particle.Position.Y*SCREEN_HEIGHT*zoom + SCREEN_HEIGHT/2 - SCREEN_HEIGHT*zoom/2) + cameraOffsetY,
-			clr,
-		)
+		clr := colorful.Hsl(float64(particle.Color)*(360/NUM_OF_COLORS), 0.9, 0.5)
+		x, y := getScreenPosition(particle.Position.X, particle.Position.Y)
+		DrawCircle(screen, x, y, clr)
 	}
 }
 
-func DrawCircle(screen *ebiten.Image, x, y float64, clr color.Color) {
-	vector.DrawFilledCircle(
-		screen,
-		float32(x),
-		float32(y),
-		PARTICLE_RADIUS*float32(zoom),
-		clr,
-		true,
-	)
+func getScreenPosition(x, y float64) (float32, float32) {
+	return float32((x*SCREEN_HEIGHT*zoom + SCREEN_WIDTH/2 - SCREEN_WIDTH*zoom/2) + cameraOffsetX),
+		float32((y*SCREEN_HEIGHT*zoom + SCREEN_HEIGHT/2 - SCREEN_HEIGHT*zoom/2) + cameraOffsetY)
+}
+
+func DrawCircle(screen *ebiten.Image, x, y float32, clr color.Color) {
+	vector.DrawFilledCircle(screen, x, y, PARTICLE_RADIUS*float32(zoom), clr, true)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
