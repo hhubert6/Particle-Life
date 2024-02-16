@@ -15,8 +15,14 @@ import (
 const (
 	SCREEN_WIDTH    = 920
 	SCREEN_HEIGHT   = 720
-	PARTICLE_RADIUS = float32(1)
+	PARTICLE_RADIUS = float32(2)
+	MAX_ZOOM        = 2
+	MIN_ZOOM        = 0.3
 )
+
+var zoom = float64(1)
+var cameraOffsetX = float64(0)
+var cameraOffsetY = float64(0)
 
 type Game struct {
 	simulation simulation.Simulation
@@ -42,6 +48,26 @@ func createRandomForces(numOfColors int) [][]float64 {
 
 func (g *Game) Update() error {
 	g.simulation.Update()
+
+	if ebiten.IsKeyPressed(ebiten.KeyEqual) && zoom <= MAX_ZOOM {
+		zoom *= 1.01
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyMinus) && zoom >= MIN_ZOOM {
+		zoom *= 0.99
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyW) {
+		cameraOffsetY += 2
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyS) {
+		cameraOffsetY -= 2 
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyD) {
+		cameraOffsetX -= 2
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyA) {
+		cameraOffsetX += 2
+	}
+
 	return nil
 }
 
@@ -65,8 +91,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 		DrawCircle(
 			screen,
-			(particle.Position.X*SCREEN_HEIGHT+SCREEN_WIDTH/2-SCREEN_HEIGHT/2)*0.8,
-			(particle.Position.Y*SCREEN_HEIGHT)*0.8,
+			(particle.Position.X*SCREEN_HEIGHT*zoom + SCREEN_WIDTH/2 - SCREEN_HEIGHT*zoom/2) + cameraOffsetX,
+			(particle.Position.Y*SCREEN_HEIGHT*zoom + SCREEN_HEIGHT/2 - SCREEN_HEIGHT*zoom/2) + cameraOffsetY,
 			clr,
 		)
 	}
@@ -77,7 +103,7 @@ func DrawCircle(screen *ebiten.Image, x, y float64, clr color.Color) {
 		screen,
 		float32(x),
 		float32(y),
-		PARTICLE_RADIUS,
+		PARTICLE_RADIUS*float32(zoom),
 		clr,
 		true,
 	)
