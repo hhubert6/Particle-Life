@@ -3,6 +3,7 @@ package simulation
 import (
 	"math"
 	"math/rand"
+	"sync"
 )
 
 const (
@@ -70,38 +71,46 @@ func generateParticles(n, m int) []Particle {
 }
 
 func (s *ParticlesSimulation) Update() {
+	wg := sync.WaitGroup{}
+
 	for i := range s.particles {
-		totalForceX := float64(0)
-		totalForceY := float64(0)
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			totalForceX := float64(0)
+			totalForceY := float64(0)
 
-		for j := range s.particles {
-			if i == j {
-				continue
+			for j := range s.particles {
+				if i == j {
+					continue
+				}
+
+				rx := s.particles[j].Position.X - s.particles[i].Position.X
+				ry := s.particles[j].Position.Y - s.particles[i].Position.Y
+				r := math.Hypot(rx, ry)
+
+				if 0 < r && r < R_MAX {
+					f := force(r/R_MAX, s.forceM[s.particles[i].Color][s.particles[j].Color])
+					totalForceX += rx / r * f
+					totalForceY += ry / r * f
+				}
 			}
 
-			rx := s.particles[j].Position.X - s.particles[i].Position.X
-			ry := s.particles[j].Position.Y - s.particles[i].Position.Y
-			r := math.Hypot(rx, ry)
+			totalForceX *= R_MAX * FORCE_FACTOR
+			totalForceY *= R_MAX * FORCE_FACTOR
 
-			if 0 < r && r < R_MAX {
-				f := force(r/R_MAX, s.forceM[s.particles[i].Color][s.particles[j].Color])
-				totalForceX += rx / r * f
-				totalForceY += ry / r * f
-			}
-		}
+			s.particles[i].Velocity.X *= frictionFactor
+			s.particles[i].Velocity.Y *= frictionFactor
 
-		totalForceX *= R_MAX * FORCE_FACTOR
-		totalForceY *= R_MAX * FORCE_FACTOR
+			s.particles[i].Velocity.X += totalForceX * DT
+			s.particles[i].Velocity.Y += totalForceY * DT
 
-		s.particles[i].Velocity.X *= frictionFactor
-		s.particles[i].Velocity.Y *= frictionFactor
-
-		s.particles[i].Velocity.X += totalForceX * DT
-		s.particles[i].Velocity.Y += totalForceY * DT
-
-		s.particles[i].Position.X += s.particles[i].Velocity.X * DT
-		s.particles[i].Position.Y += s.particles[i].Velocity.Y * DT
+			s.particles[i].Position.X += s.particles[i].Velocity.X * DT
+			s.particles[i].Position.Y += s.particles[i].Velocity.Y * DT
+		}(i)
 	}
+
+	wg.Wait()
 }
 
 func force(r, a float64) float64 {
