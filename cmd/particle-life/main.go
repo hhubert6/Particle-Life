@@ -21,9 +21,9 @@ const (
 	MIN_ZOOM         = 0.3
 	ZOOM_IN_FACTOR   = 1.01
 	ZOOM_OUT_FACTOR  = 0.99
-	DEFAULT_ZOOM     = 0.9
+	DEFAULT_ZOOM     = 0.8
 	NUM_OF_PARTICLES = 1000
-	NUM_OF_COLORS    = 5
+	NUM_OF_COLORS    = 6
 	OFFSET_STEP      = 5
 )
 
@@ -37,11 +37,14 @@ type Game struct {
 
 func NewGame() *Game {
 	return &Game{
-		simulation.NewParticleSimulation(NUM_OF_PARTICLES, createRandomForces(NUM_OF_COLORS)),
+		simulation.NewParticleSimulation(
+			NUM_OF_PARTICLES,
+			createRandomForces(NUM_OF_COLORS),
+		),
 	}
 }
 
-func createRandomForces(numOfColors int) [][]float64 {
+func createRandomForces(numOfColors int) *[][]float64 {
 	forceMatrix := make([][]float64, numOfColors)
 	for i := range forceMatrix {
 		forceMatrix[i] = make([]float64, numOfColors)
@@ -50,7 +53,7 @@ func createRandomForces(numOfColors int) [][]float64 {
 			forceMatrix[i][j] = rand.Float64()*2 - 1
 		}
 	}
-	return forceMatrix
+	return &forceMatrix
 }
 
 func (g *Game) Update() error {
@@ -88,13 +91,21 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	for _, particle := range g.simulation.Particles() {
 		clr := colorful.Hsl(float64(particle.Color)*(360/NUM_OF_COLORS), 0.9, 0.5)
 		x, y := getScreenPosition(particle.Position.X, particle.Position.Y)
-		DrawCircle(screen, x, y, clr)
+
+		if 0 <= x && x <= SCREEN_WIDTH && 0 <= y && y <= SCREEN_HEIGHT {
+			DrawCircle(screen, x, y, clr)
+		}
 	}
 }
 
 func getScreenPosition(x, y float64) (float32, float32) {
-	return float32((x*SCREEN_HEIGHT*zoom + SCREEN_WIDTH/2 - SCREEN_WIDTH*zoom/2) + cameraOffsetX),
-		float32((y*SCREEN_HEIGHT*zoom + SCREEN_HEIGHT/2 - SCREEN_HEIGHT*zoom/2) + cameraOffsetY)
+	centerOffsetX := SCREEN_WIDTH/2 - SCREEN_WIDTH*zoom/2
+	centerOffsetY := SCREEN_HEIGHT/2 - SCREEN_HEIGHT*zoom/2
+
+	screenX := x*SCREEN_HEIGHT*zoom + centerOffsetX + cameraOffsetX
+	screenY := y*SCREEN_HEIGHT*zoom + centerOffsetY + cameraOffsetY
+
+	return float32(screenX), float32(screenY)
 }
 
 func DrawCircle(screen *ebiten.Image, x, y float32, clr color.Color) {

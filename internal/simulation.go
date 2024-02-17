@@ -32,21 +32,21 @@ type Simulation interface {
 
 type ParticlesSimulation struct {
 	particles []Particle
-	forceM    [][]float64
+	forceM    *[][]float64
 }
 
-func NewParticleSimulation(numOfParticles int, forceM [][]float64) *ParticlesSimulation {
-	if len(forceM) == 0 {
+func NewParticleSimulation(numOfParticles int, forceM *[][]float64) *ParticlesSimulation {
+	if len(*forceM) == 0 {
 		panic("Empty force matrix")
 	}
-	for i := range forceM {
-		if len(forceM) != len(forceM[i]) {
+	for i := range *forceM {
+		if len(*forceM) != len((*forceM)[i]) {
 			panic("Force matrix is not square matrix")
 		}
 	}
 
 	return &ParticlesSimulation{
-		particles: generateParticles(numOfParticles, len(forceM)),
+		particles: generateParticles(numOfParticles, len(*forceM)),
 		forceM:    forceM,
 	}
 }
@@ -75,42 +75,45 @@ func (s *ParticlesSimulation) Update() {
 
 	for i := range s.particles {
 		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			totalForceX := float64(0)
-			totalForceY := float64(0)
-
-			for j := range s.particles {
-				if i == j {
-					continue
-				}
-
-				rx := s.particles[j].Position.X - s.particles[i].Position.X
-				ry := s.particles[j].Position.Y - s.particles[i].Position.Y
-				r := math.Hypot(rx, ry)
-
-				if 0 < r && r < R_MAX {
-					f := force(r/R_MAX, s.forceM[s.particles[i].Color][s.particles[j].Color])
-					totalForceX += rx / r * f
-					totalForceY += ry / r * f
-				}
-			}
-
-			totalForceX *= R_MAX * FORCE_FACTOR
-			totalForceY *= R_MAX * FORCE_FACTOR
-
-			s.particles[i].Velocity.X *= frictionFactor
-			s.particles[i].Velocity.Y *= frictionFactor
-
-			s.particles[i].Velocity.X += totalForceX * DT
-			s.particles[i].Velocity.Y += totalForceY * DT
-
-			s.particles[i].Position.X += s.particles[i].Velocity.X * DT
-			s.particles[i].Position.Y += s.particles[i].Velocity.Y * DT
-		}(i)
+		go s.updateParticle(i, &wg)
 	}
 
 	wg.Wait()
+}
+
+func (s *ParticlesSimulation) updateParticle(i int, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	totalForceX := float64(0)
+	totalForceY := float64(0)
+
+	for j := range s.particles {
+		if i == j {
+			continue
+		}
+
+		rx := s.particles[j].Position.X - s.particles[i].Position.X
+		ry := s.particles[j].Position.Y - s.particles[i].Position.Y
+		r := math.Hypot(rx, ry)
+
+		if 0 < r && r < R_MAX {
+			f := force(r/R_MAX, (*s.forceM)[s.particles[i].Color][s.particles[j].Color])
+			totalForceX += rx / r * f
+			totalForceY += ry / r * f
+		}
+	}
+
+	totalForceX *= R_MAX * FORCE_FACTOR
+	totalForceY *= R_MAX * FORCE_FACTOR
+
+	s.particles[i].Velocity.X *= frictionFactor
+	s.particles[i].Velocity.Y *= frictionFactor
+
+	s.particles[i].Velocity.X += totalForceX * DT
+	s.particles[i].Velocity.Y += totalForceY * DT
+
+	s.particles[i].Position.X += s.particles[i].Velocity.X * DT
+	s.particles[i].Position.Y += s.particles[i].Velocity.Y * DT
 }
 
 func force(r, a float64) float64 {
