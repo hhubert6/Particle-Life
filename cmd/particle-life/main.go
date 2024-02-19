@@ -16,20 +16,24 @@ import (
 const (
 	SCREEN_WIDTH     = 1440
 	SCREEN_HEIGHT    = 760
-	PARTICLE_RADIUS  = float32(1.5)
+	PARTICLE_RADIUS  = float32(1)
 	MAX_ZOOM         = 2
 	MIN_ZOOM         = 0.3
 	ZOOM_IN_FACTOR   = 1.01
 	ZOOM_OUT_FACTOR  = 0.99
-	DEFAULT_ZOOM     = float64(0.8)
-	NUM_OF_PARTICLES = 2000
-	NUM_OF_COLORS    = 8
+	DEFAULT_ZOOM     = float64(1)
+	NUM_OF_PARTICLES = 10000
+	NUM_OF_COLORS    = 10
 	OFFSET_STEP      = 5
 )
 
 var zoom = DEFAULT_ZOOM
 var cameraOffsetX = float64(0)
 var cameraOffsetY = float64(0)
+
+var paused = false
+var spaceStagger = false
+var spaceDelay = 0
 
 type Game struct {
 	simulation simulation.Simulation
@@ -57,7 +61,9 @@ func createRandomForces(numOfColors int) *[][]float64 {
 }
 
 func (g *Game) Update() error {
-	g.simulation.Update()
+	if !paused {
+		g.simulation.Update()
+	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyEqual) && zoom <= MAX_ZOOM {
 		zoom *= ZOOM_IN_FACTOR
@@ -81,6 +87,19 @@ func (g *Game) Update() error {
 	if ebiten.IsKeyPressed(ebiten.KeyA) {
 		cameraOffsetX += OFFSET_STEP
 	}
+	if ebiten.IsKeyPressed(ebiten.KeySpace) {
+		if !spaceStagger {
+			paused = !paused
+			spaceStagger = true
+		}
+	}
+	if spaceStagger {
+		spaceDelay += 1
+		if spaceDelay > 30 {
+			spaceStagger = false
+			spaceDelay = 0
+		}
+	}
 
 	return nil
 }
@@ -93,7 +112,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		x, y := getScreenPosition(particle.Position.X, particle.Position.Y)
 
 		if 0 <= x && x <= SCREEN_WIDTH && 0 <= y && y <= SCREEN_HEIGHT {
-			DrawCircle(screen, x, y, clr)
+			DrawRect(screen, x, y, clr)
 		}
 	}
 
@@ -114,8 +133,8 @@ func getScreenPosition(x, y float64) (float32, float32) {
 	return float32(screenX), float32(screenY)
 }
 
-func DrawCircle(screen *ebiten.Image, x, y float32, clr color.Color) {
-	vector.DrawFilledCircle(screen, x, y, PARTICLE_RADIUS*float32(zoom), clr, true)
+func DrawRect(screen *ebiten.Image, x, y float32, clr color.Color) {
+	vector.DrawFilledRect(screen, x, y, PARTICLE_RADIUS*float32(zoom), PARTICLE_RADIUS*float32(zoom), clr, false)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
