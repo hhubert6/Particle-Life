@@ -16,14 +16,14 @@ import (
 const (
 	SCREEN_WIDTH     = 1440
 	SCREEN_HEIGHT    = 760
-	PARTICLE_RADIUS  = float32(2)
+	PARTICLE_RADIUS  = float32(1.5)
 	MAX_ZOOM         = 2
 	MIN_ZOOM         = 0.3
 	ZOOM_IN_FACTOR   = 1.01
 	ZOOM_OUT_FACTOR  = 0.99
-	DEFAULT_ZOOM     = 0.8
-	NUM_OF_PARTICLES = 1000
-	NUM_OF_COLORS    = 6
+	DEFAULT_ZOOM     = float64(0.8)
+	NUM_OF_PARTICLES = 2000
+	NUM_OF_COLORS    = 8
 	OFFSET_STEP      = 5
 )
 
@@ -96,6 +96,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			DrawCircle(screen, x, y, clr)
 		}
 	}
+
+	// for k := range g.simulation.Buckets() {
+	// 	sx, sy := getScreenPosition(k.X*simulation.R_MAX, k.Y*simulation.R_MAX)
+	// 	width := simulation.R_MAX * SCREEN_HEIGHT * zoom
+	// 	vector.StrokeRect(screen, sx, sy, float32(width), float32(width), 1, color.White, false)
+	// }
 }
 
 func getScreenPosition(x, y float64) (float32, float32) {

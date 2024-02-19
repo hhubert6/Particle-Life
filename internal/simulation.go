@@ -28,11 +28,13 @@ type Particle struct {
 type Simulation interface {
 	Update()
 	Particles() []Particle
+	Buckets() map[Vec2][]Particle
 }
 
 type ParticlesSimulation struct {
 	particles []Particle
 	forceM    *[][]float64
+	buckets   map[Vec2][]Particle
 }
 
 func NewParticleSimulation(numOfParticles int, forceM *[][]float64) *ParticlesSimulation {
@@ -45,14 +47,18 @@ func NewParticleSimulation(numOfParticles int, forceM *[][]float64) *ParticlesSi
 		}
 	}
 
-	return &ParticlesSimulation{
-		particles: generateParticles(numOfParticles, len(*forceM)),
-		forceM:    forceM,
+	simulation := &ParticlesSimulation{
+		forceM:  forceM,
+		buckets: make(map[Vec2][]Particle, 100),
 	}
+
+	simulation.particles = generateParticles(numOfParticles, len(*forceM), simulation.buckets)
+
+	return simulation
 }
 
 // n - number of particles to generate, m - number of particles colors
-func generateParticles(n, m int) []Particle {
+func generateParticles(n, m int, buckets map[Vec2][]Particle) []Particle {
 	container := make([]Particle, n)
 
 	for i := range container {
@@ -65,6 +71,9 @@ func generateParticles(n, m int) []Particle {
 			Velocity: Vec2{},
 			Color:    color,
 		}
+
+		key := getBucketKey(x, y)
+		buckets[key] = append(buckets[key], container[i])
 	}
 
 	return container
@@ -79,27 +88,38 @@ func (s *ParticlesSimulation) Update() {
 	}
 
 	wg.Wait()
+
+	s.updateBuckets()
 }
 
 func (s *ParticlesSimulation) updateParticle(i int, wg *sync.WaitGroup) {
 	defer wg.Done()
+	p := s.particles[i]
 
 	totalForceX := float64(0)
 	totalForceY := float64(0)
 
-	for j := range s.particles {
-		if i == j {
-			continue
-		}
+	gridX, gridY := getGridPosition(p.Position.X, p.Position.Y)
 
-		rx := s.particles[j].Position.X - s.particles[i].Position.X
-		ry := s.particles[j].Position.Y - s.particles[i].Position.Y
-		r := math.Hypot(rx, ry)
+	for offsetX := float64(-1); offsetX < 2; offsetX++ {
+		for offsetY := float64(-1); offsetY < 2; offsetY++ {
 
-		if 0 < r && r < R_MAX {
-			f := force(r/R_MAX, (*s.forceM)[s.particles[i].Color][s.particles[j].Color])
-			totalForceX += rx / r * f
-			totalForceY += ry / r * f
+			key := Vec2{X: gridX + offsetX, Y: gridY + offsetY}
+			bucket, ok := s.buckets[key]
+
+			if ok {
+				for j := range bucket {
+					rx := bucket[j].Position.X - p.Position.X
+					ry := bucket[j].Position.Y - p.Position.Y
+					r := math.Hypot(rx, ry)
+
+					if 0 < r && r < R_MAX {
+						f := force(r/R_MAX, (*s.forceM)[p.Color][bucket[j].Color])
+						totalForceX += rx / r * f
+						totalForceY += ry / r * f
+					}
+				}
+			}
 		}
 	}
 
@@ -126,6 +146,32 @@ func force(r, a float64) float64 {
 	}
 }
 
+func (s *ParticlesSimulation) updateBuckets() {
+	for v := range s.buckets {
+		delete(s.buckets, v)
+	}
+
+	for i := range s.particles {
+		key := getBucketKey(s.particles[i].Position.X, s.particles[i].Position.Y)
+		s.buckets[key] = append(s.buckets[key], s.particles[i])
+	}
+}
+
+func getBucketKey(x, y float64) Vec2 {
+	gridX, gridY := getGridPosition(x, y)
+	return Vec2{X: gridX, Y: gridY}
+}
+
+func getGridPosition(x, y float64) (gridX, gridY float64) {
+	gridX = math.Floor(x / R_MAX)
+	gridY = math.Floor(y / R_MAX)
+	return
+}
+
 func (s *ParticlesSimulation) Particles() []Particle {
 	return s.particles
+}
+
+func (s *ParticlesSimulation) Buckets() map[Vec2][]Particle {
+	return s.buckets
 }
