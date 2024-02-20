@@ -9,7 +9,7 @@ import (
 const (
 	DT                 = 0.016
 	FRICTION_HALF_LIFE = 0.04
-	R_MAX              = 0.05
+	R_MAX              = 0.1
 	BETA               = 0.3
 	FORCE_FACTOR       = 5
 )

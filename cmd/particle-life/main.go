@@ -16,14 +16,14 @@ import (
 const (
 	SCREEN_WIDTH     = 1440
 	SCREEN_HEIGHT    = 760
-	PARTICLE_RADIUS  = float32(1)
-	MAX_ZOOM         = 2
-	MIN_ZOOM         = 0.3
+	PARTICLE_RADIUS  = float32(2)
+	MAX_ZOOM         = 3
+	MIN_ZOOM         = 0.4
 	ZOOM_IN_FACTOR   = 1.01
 	ZOOM_OUT_FACTOR  = 0.99
 	DEFAULT_ZOOM     = float64(1)
-	NUM_OF_PARTICLES = 10000
-	NUM_OF_COLORS    = 10
+	NUM_OF_PARTICLES = 5000
+	NUM_OF_COLORS    = 2
 	OFFSET_STEP      = 5
 )
 
@@ -35,29 +35,36 @@ var paused = false
 var spaceStagger = false
 var spaceDelay = 0
 
+var forces *[][]float64
+
 type Game struct {
 	simulation simulation.Simulation
 }
 
 func NewGame() *Game {
+	forces = createForces()
 	return &Game{
 		simulation.NewParticleSimulation(
 			NUM_OF_PARTICLES,
-			createRandomForces(NUM_OF_COLORS),
+			forces,
 		),
 	}
 }
 
-func createRandomForces(numOfColors int) *[][]float64 {
-	forceMatrix := make([][]float64, numOfColors)
+func createForces() *[][]float64 {
+	forceMatrix := make([][]float64, NUM_OF_COLORS)
 	for i := range forceMatrix {
-		forceMatrix[i] = make([]float64, numOfColors)
-
-		for j := range forceMatrix[i] {
-			forceMatrix[i][j] = rand.Float64()*2 - 1
-		}
+		forceMatrix[i] = make([]float64, NUM_OF_COLORS)
 	}
 	return &forceMatrix
+}
+
+func randomForces() {
+	for i := range *forces {
+		for j := range (*forces)[i] {
+			(*forces)[i][j] = rand.Float64()*2 - 1
+		}
+	}
 }
 
 func (g *Game) Update() error {
@@ -142,6 +149,43 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 }
 
 func main() {
+	go func() {
+		for {
+			fmt.Println("Enter:")
+
+			var input string
+			_, err := fmt.Scanf("%s", &input)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+
+			switch input {
+			case "reset":
+				for i := range *forces {
+					for j := range (*forces)[i] {
+						(*forces)[i][j] = 0
+					}
+				}
+			case "random":
+				randomForces()
+			case "set":
+				var row, col int
+				var value float64
+				_, err := fmt.Scanf("%d %d %f", &row, &col, &value)
+
+				if err != nil || value < -1 || value > 1 || row < 0 || col < 0 || row >= len(*forces) || col >= len(*forces) {
+					fmt.Println("Wrong input!", err)
+					continue
+				}
+
+				(*forces)[row][col] = value
+			default:
+				fmt.Println("Wrong input!")
+			}
+		}
+	}()
+
 	game := NewGame()
 
 	ebiten.SetWindowSize(SCREEN_WIDTH, SCREEN_HEIGHT)
