@@ -28,13 +28,13 @@ type Particle struct {
 type Simulation interface {
 	Update()
 	Particles() []Particle
-	Buckets() map[Vec2][]Particle
+	Buckets() map[Vec2][]int16
 }
 
 type ParticlesSimulation struct {
 	particles []Particle
 	forceM    *[][]float64
-	buckets   map[Vec2][]Particle
+	buckets   map[Vec2][]int16
 }
 
 func NewParticleSimulation(numOfParticles int, forceM *[][]float64) *ParticlesSimulation {
@@ -49,7 +49,7 @@ func NewParticleSimulation(numOfParticles int, forceM *[][]float64) *ParticlesSi
 
 	simulation := &ParticlesSimulation{
 		forceM:  forceM,
-		buckets: make(map[Vec2][]Particle, 100),
+		buckets: make(map[Vec2][]int16, 100),
 	}
 
 	simulation.particles = generateParticles(numOfParticles, len(*forceM), simulation.buckets)
@@ -58,7 +58,7 @@ func NewParticleSimulation(numOfParticles int, forceM *[][]float64) *ParticlesSi
 }
 
 // n - number of particles to generate, m - number of particles colors
-func generateParticles(n, m int, buckets map[Vec2][]Particle) []Particle {
+func generateParticles(n, m int, buckets map[Vec2][]int16) []Particle {
 	container := make([]Particle, n)
 
 	for i := range container {
@@ -73,7 +73,7 @@ func generateParticles(n, m int, buckets map[Vec2][]Particle) []Particle {
 		}
 
 		key := getBucketKey(x, y)
-		buckets[key] = append(buckets[key], container[i])
+		buckets[key] = append(buckets[key], int16(i))
 	}
 
 	return container
@@ -101,20 +101,27 @@ func (s *ParticlesSimulation) updateParticle(i int, wg *sync.WaitGroup) {
 
 	gridX, gridY := getGridPosition(p.Position.X, p.Position.Y)
 
+	var key Vec2
+	var bucket []int16
+	var ok bool
+	var pOther Particle
+	var rx, ry, r, f float64
+
 	for offsetX := float64(-1); offsetX < 2; offsetX++ {
 		for offsetY := float64(-1); offsetY < 2; offsetY++ {
 
-			key := Vec2{X: gridX + offsetX, Y: gridY + offsetY}
-			bucket, ok := s.buckets[key]
+			key = Vec2{X: gridX + offsetX, Y: gridY + offsetY}
+			bucket, ok = s.buckets[key]
 
 			if ok {
 				for j := range bucket {
-					rx := bucket[j].Position.X - p.Position.X
-					ry := bucket[j].Position.Y - p.Position.Y
-					r := math.Hypot(rx, ry)
+					pOther = s.particles[bucket[j]]
+					rx = pOther.Position.X - p.Position.X
+					ry = pOther.Position.Y - p.Position.Y
+					r = math.Hypot(rx, ry)
 
 					if 0 < r && r < R_MAX {
-						f := force(r/R_MAX, (*s.forceM)[p.Color][bucket[j].Color])
+						f = force(r/R_MAX, (*s.forceM)[p.Color][pOther.Color])
 						totalForceX += rx / r * f
 						totalForceY += ry / r * f
 					}
@@ -153,7 +160,12 @@ func (s *ParticlesSimulation) updateBuckets() {
 
 	for i := range s.particles {
 		key := getBucketKey(s.particles[i].Position.X, s.particles[i].Position.Y)
-		s.buckets[key] = append(s.buckets[key], s.particles[i])
+		_, ok := s.buckets[key]
+		if ok {
+			s.buckets[key] = append(s.buckets[key], int16(i))
+		} else {
+			s.buckets[key] = make([]int16, 0, 500)
+		}
 	}
 }
 
@@ -172,6 +184,6 @@ func (s *ParticlesSimulation) Particles() []Particle {
 	return s.particles
 }
 
-func (s *ParticlesSimulation) Buckets() map[Vec2][]Particle {
+func (s *ParticlesSimulation) Buckets() map[Vec2][]int16 {
 	return s.buckets
 }
